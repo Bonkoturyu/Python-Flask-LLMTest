@@ -1,0 +1,55 @@
+# このファイルを config.local.yaml という名前でコピーして利用します。
+# config.local.yaml はGit管理されません。
+
+app:
+  # 画面から送信できる最大文字数
+  max_input_length: 4000
+  # HTTPリクエスト全体の最大サイズ（バイト）
+  max_request_bytes: 65536
+  # 同じブラウザーからLLMへ連続送信できる最短間隔（秒）。0で無効化します。
+  min_request_interval_seconds: 1.0
+
+llm:
+  # ollama、lmstudio、anthropic、gemini、openai
+  # 別名としてclaude、google、gpt、codexも指定できます。
+  provider: ollama
+
+  # 利用するプロバイダーの正確なモデルID
+  model: gemma3:4b
+
+  # 共通の生成設定
+  max_tokens: 1024
+  temperature: 0.7
+  # LLM APIの応答を待つ最大時間（秒）
+  request_timeout_seconds: 180
+  # SDKによる自動再試行回数。意図しない重複課金を避けるため初期値は0です。
+  max_retries: 0
+  system_prompt: あなたは日本語で簡潔に回答するアシスタントです。
+
+  ollama:
+    host: http://localhost:11434
+
+  lmstudio:
+    # LM StudioのOpenAI互換API。標準ポートは1234です。
+    base_url: http://localhost:1234/v1
+    # LM Studio側で認証を有効にした場合はAPI Tokenを指定します。
+    # 認証なしの場合は、この初期値のままで利用できます。
+    api_key: lm-studio
+
+  anthropic:
+    # providerをanthropicにする場合に設定します。
+    # 空欄の場合は環境変数 ANTHROPIC_API_KEY を使用します。
+    api_key: ""
+    base_url: https://api.anthropic.com
+
+  gemini:
+    # 空欄の場合は環境変数 GEMINI_API_KEY または GOOGLE_API_KEY を使用します。
+    api_key: ""
+
+  openai:
+    # 空欄の場合は環境変数 OPENAI_API_KEY を使用します。
+    # Responses APIでテキスト出力に対応するモデルIDをllm.modelへ指定します。
+    api_key: ""
+    base_url: https://api.openai.com/v1
+    # 一部の推論モデルはtemperatureを受け付けないため、初期値では送信しません。
+    use_temperature: false
