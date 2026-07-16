@@ -50,6 +50,24 @@ def test_get_displays_configured_provider_and_model():
     assert "http://localhost:11434" in page
 
 
+def test_missing_flask_secret_key_logs_multi_worker_warning(
+    monkeypatch, caplog
+):
+    monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+
+    create_app(FakeLLMClient(), make_settings())
+
+    assert "複数ワーカーで運用する場合" in caplog.text
+
+
+def test_flask_secret_key_uses_environment_value(monkeypatch):
+    monkeypatch.setenv("FLASK_SECRET_KEY", "test-shared-secret")
+
+    app = create_app(FakeLLMClient(), make_settings())
+
+    assert app.secret_key == "test-shared-secret"
+
+
 def test_post_sends_question_to_selected_llm_then_redirects():
     llm_client = FakeLLMClient("こんにちは！")
     app = create_app(llm_client, make_settings())

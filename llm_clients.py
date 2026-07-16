@@ -142,6 +142,7 @@ class GeminiLLMClient:
         self.client = client or genai.Client(
             api_key=settings.gemini_api_key,
             http_options=genai_types.HttpOptions(
+                # google-genaiのHttpOptions.timeoutはミリ秒単位。
                 timeout=int(settings.request_timeout_seconds * 1000),
                 retry_options=genai_types.HttpRetryOptions(
                     attempts=settings.max_retries + 1
@@ -150,6 +151,8 @@ class GeminiLLMClient:
         )
 
     def generate(self, user_input: str) -> str:
+        # Interactions APIでは生成項目をgeneration_configへ指定し、
+        # system_instructionはトップレベルへ指定する。
         parameters: dict[str, Any] = {
             "model": self.settings.model,
             "input": user_input,

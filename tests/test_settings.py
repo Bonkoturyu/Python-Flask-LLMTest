@@ -165,3 +165,14 @@ llm:
 
     with pytest.raises(ValueError, match="有効なURL"):
         load_settings(config)
+
+
+def test_missing_config_message_separates_the_recovery_instruction(
+    tmp_path: Path,
+):
+    missing_config = tmp_path / "missing.yaml"
+
+    with pytest.raises(FileNotFoundError) as error:
+        load_settings(missing_config)
+
+    assert "ありません。\nconfig.example.yaml" in str(error.value)

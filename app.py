@@ -28,7 +28,14 @@ def create_app(
 ) -> Flask:
     """Flaskアプリを生成する。テスト時は設定とLLMを差し替えられる。"""
     app = Flask(__name__)
-    app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    secret_key = os.getenv("FLASK_SECRET_KEY")
+    if not secret_key:
+        app.logger.warning(
+            "FLASK_SECRET_KEYが設定されていないため、起動時にランダム生成します。"
+            "複数ワーカーで運用する場合は、全ワーカーで同じ値を設定してください。"
+        )
+        secret_key = secrets.token_hex(32)
+    app.secret_key = secret_key
     current_settings = settings or load_settings()
     client = llm_client or build_llm_client(current_settings)
     app.config["MAX_CONTENT_LENGTH"] = current_settings.max_request_bytes

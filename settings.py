@@ -152,7 +152,7 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
 
     if not path.exists():
         raise FileNotFoundError(
-            f"設定ファイル「{path}」がありません。"
+            f"設定ファイル「{path}」がありません。\n"
             "config.example.yamlをconfig.local.yamlへコピーしてください。"
         )
 
