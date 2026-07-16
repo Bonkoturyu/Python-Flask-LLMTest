@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="設定したLLMと会話できるチャットアプリ">
+    <title>LLMチャット</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </head>
+  <body>
+    <main class="chat-card">
+      <header>
+        <p class="eyebrow">CONFIGURABLE LLM CHAT</p>
+        <h1>{{ provider_name }} に質問する</h1>
+        <p class="subtitle">設定ファイルでモデルと接続先を切り替えられます。</p>
+      </header>
+
+      <dl class="connection" aria-label="接続情報">
+        <div><dt>プロバイダー</dt><dd>{{ provider_name }}</dd></div>
+        <div><dt>モデル</dt><dd>{{ model_name }}</dd></div>
+        <div><dt>接続先</dt><dd>{{ connection_label }}</dd></div>
+      </dl>
+
+      <form method="post" id="question-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="user_input">質問</label>
+        <textarea
+          id="user_input"
+          name="user_input"
+          rows="7"
+          maxlength="{{ max_input_length }}"
+          placeholder="例：Flaskの特徴を3つ教えてください"
+          required
+          autofocus
+        >{{ user_input }}</textarea>
+        <div class="form-footer">
+          <span>{{ max_input_length }}文字まで</span>
+          <button type="submit" id="submit-button">{{ provider_name }} に送信</button>
+        </div>
+      </form>
+
+      {% if error_message %}
+        <section class="message error" role="alert">
+          <h2>エラー</h2>
+          <p>{{ error_message }}</p>
+        </section>
+      {% endif %}
+
+      {% if ai_response %}
+        <section class="message answer" aria-live="polite">
+          <h2>{{ provider_name }} の回答</h2>
+          <p>{{ ai_response }}</p>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

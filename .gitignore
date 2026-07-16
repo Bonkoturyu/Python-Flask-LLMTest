@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+.pytest-tmp*/
+.venv/
+.uv-cache/
+*.py[cod]
+config.*.yaml
+!config.example.yaml
