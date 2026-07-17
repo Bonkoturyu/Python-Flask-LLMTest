@@ -48,7 +48,13 @@ def make_settings(**overrides):
     return AppSettings(**values)
 
 
-def csrf_post(client, user_input, *, follow_redirects=True):
+def csrf_post(
+    client,
+    user_input,
+    *,
+    follow_redirects=True,
+    environ_overrides=None,
+):
     client.get("/")
     with client.session_transaction() as flask_session:
         csrf_token = flask_session["csrf_token"]
@@ -56,6 +62,7 @@ def csrf_post(client, user_input, *, follow_redirects=True):
         "/",
         data={"user_input": user_input, "csrf_token": csrf_token},
         follow_redirects=follow_redirects,
+        environ_overrides=environ_overrides,
     )
 
 
@@ -252,6 +259,9 @@ def test_llm_error_is_generic_and_does_not_leak_exception_detail(caplog):
     response = csrf_post(app.test_client(), "質問")
     page = response.get_data(as_text=True)
 
+    assert "ConnectionError" in caplog.text
+    assert "in generate" in caplog.text
+
     assert response.status_code == 502
     assert "Ollamaから回答を取得できませんでした。" in page
     assert "秘密の接続先" not in page
@@ -319,6 +329,14 @@ def test_untrusted_host_is_rejected():
     assert response.status_code == 400
 
 
+def test_ipv6_loopback_host_is_rejected_when_server_is_ipv4_only():
+    app = create_app(FakeLLMClient(), make_settings())
+
+    response = app.test_client().get("/", headers={"Host": "[::1]"})
+
+    assert response.status_code == 400
+
+
 def test_clearing_cookie_does_not_bypass_ip_rate_limit():
     llm_client = FakeLLMClient()
     app = create_app(
@@ -358,6 +376,52 @@ def test_concurrent_llm_request_is_rejected():
 
     assert not worker.is_alive()
     assert first_result["response"].status_code == 200
+
+
+def test_rejected_concurrent_request_does_not_consume_rate_limit():
+    llm_client = BlockingLLMClient()
+    app = create_app(
+        llm_client,
+        make_settings(
+            max_concurrent_requests=1,
+            min_request_interval_seconds=60,
+        ),
+    )
+    first_result = {}
+
+    def send_first_request():
+        first_result["response"] = csrf_post(
+            app.test_client(),
+            "1回目",
+            environ_overrides={"REMOTE_ADDR": "192.0.2.1"},
+        )
+
+    worker = Thread(target=send_first_request)
+    worker.start()
+    second_client = app.test_client()
+    try:
+        assert llm_client.started.wait(timeout=5)
+        rejected_response = csrf_post(
+            second_client,
+            "2回目",
+            environ_overrides={"REMOTE_ADDR": "192.0.2.2"},
+        )
+        assert rejected_response.status_code == 429
+        assert llm_client.call_count == 1
+    finally:
+        llm_client.release.set()
+        worker.join(timeout=5)
+
+    retry_response = csrf_post(
+        second_client,
+        "再試行",
+        environ_overrides={"REMOTE_ADDR": "192.0.2.2"},
+    )
+
+    assert not worker.is_alive()
+    assert first_result["response"].status_code == 200
+    assert retry_response.status_code == 200
+    assert llm_client.call_count == 2
 
 
 def test_llm_slot_is_released_after_error():

@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import time
+import traceback
 from collections import OrderedDict
 from threading import BoundedSemaphore, Lock
 from typing import Any, Protocol
@@ -77,7 +78,7 @@ def create_app(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
         SESSION_COOKIE_SECURE=cookie_secure_value in {"1", "true", "yes"},
-        TRUSTED_HOSTS=["localhost", ".localhost", "127.0.0.1", "::1"],
+        TRUSTED_HOSTS=["localhost", ".localhost", "127.0.0.1"],
     )
 
     results: OrderedDict[str, tuple[float, dict[str, Any]]] = OrderedDict()
@@ -185,25 +186,6 @@ def create_app(
                 status_code=400,
             )
 
-        rate_limit_key = request.remote_addr or "unknown"
-        now = time.monotonic()
-        with state_lock:
-            previous_request = last_requests.get(rate_limit_key, 0.0)
-            if (
-                current_settings.min_request_interval_seconds > 0
-                and now - previous_request
-                < current_settings.min_request_interval_seconds
-            ):
-                return render_index(
-                    user_input=user_input,
-                    error_message="連続送信を避けるため、少し待ってから再送信してください。",
-                    status_code=429,
-                )
-            last_requests[rate_limit_key] = now
-            last_requests.move_to_end(rate_limit_key)
-            while len(last_requests) > max_tracked_clients:
-                last_requests.popitem(last=False)
-
         if not request_slots.acquire(blocking=False):
             return render_index(
                 user_input=user_input,
@@ -211,35 +193,60 @@ def create_app(
                 status_code=429,
             )
 
-        result: dict[str, Any]
         try:
-            ai_response = client.generate(user_input)
-            if not isinstance(ai_response, str):
-                raise RuntimeError("LLMクライアントが文字列以外を返しました。")
-            if len(ai_response) > current_settings.max_response_length:
-                ai_response = (
-                    ai_response[: current_settings.max_response_length]
-                    + RESPONSE_LIMIT_NOTICE
+            rate_limit_key = request.remote_addr or "unknown"
+            now = time.monotonic()
+            with state_lock:
+                previous_request = last_requests.get(rate_limit_key, 0.0)
+                if (
+                    current_settings.min_request_interval_seconds > 0
+                    and now - previous_request
+                    < current_settings.min_request_interval_seconds
+                ):
+                    return render_index(
+                        user_input=user_input,
+                        error_message=(
+                            "連続送信を避けるため、少し待ってから再送信してください。"
+                        ),
+                        status_code=429,
+                    )
+                last_requests[rate_limit_key] = now
+                last_requests.move_to_end(rate_limit_key)
+                while len(last_requests) > max_tracked_clients:
+                    last_requests.popitem(last=False)
+
+            result: dict[str, Any]
+            try:
+                ai_response = client.generate(user_input)
+                if not isinstance(ai_response, str):
+                    raise RuntimeError("LLMクライアントが文字列以外を返しました。")
+                if len(ai_response) > current_settings.max_response_length:
+                    ai_response = (
+                        ai_response[: current_settings.max_response_length]
+                        + RESPONSE_LIMIT_NOTICE
+                    )
+                result = {
+                    "user_input": user_input,
+                    "ai_response": ai_response,
+                    "status_code": 200,
+                }
+            except Exception as exc:
+                stack_trace = "".join(traceback.format_tb(exc.__traceback__))
+                app.logger.error(
+                    "%sへの問い合わせ中にエラーが発生しました"
+                    "（例外種別: %s）\n%s",
+                    current_settings.provider_display_name,
+                    type(exc).__name__,
+                    stack_trace,
                 )
-            result = {
-                "user_input": user_input,
-                "ai_response": ai_response,
-                "status_code": 200,
-            }
-        except Exception as exc:
-            app.logger.error(
-                "%sへの問い合わせ中にエラーが発生しました（例外種別: %s）",
-                current_settings.provider_display_name,
-                type(exc).__name__,
-            )
-            result = {
-                "user_input": user_input,
-                "error_message": (
-                    f"{current_settings.provider_display_name}から回答を取得できませんでした。"
-                    "設定と接続状態を確認してください。"
-                ),
-                "status_code": 502,
-            }
+                result = {
+                    "user_input": user_input,
+                    "error_message": (
+                        f"{current_settings.provider_display_name}から回答を取得できませんでした。"
+                        "設定と接続状態を確認してください。"
+                    ),
+                    "status_code": 502,
+                }
         finally:
             request_slots.release()
 
