@@ -6,8 +6,14 @@ app:
   max_input_length: 4000
   # HTTPリクエスト全体の最大サイズ（バイト）
   max_request_bytes: 65536
-  # 同じブラウザーからLLMへ連続送信できる最短間隔（秒）。0で無効化します。
+  # ブラウザーへ保存・表示するLLM回答の最大文字数
+  max_response_length: 20000
+  # 回答をサーバーのメモリに一時保持する秒数
+  result_ttl_seconds: 600
+  # 同じ送信元IPからLLMへ連続送信できる最短間隔（秒）。0で無効化します。
   min_request_interval_seconds: 1.0
+  # 同時にLLMへ問い合わせる最大件数。課金・負荷を抑える初期値は1です。
+  max_concurrent_requests: 1
 
 llm:
   # ollama、lmstudio、anthropic、gemini、openai
@@ -28,6 +34,8 @@ llm:
 
   ollama:
     host: http://localhost:11434
+    # 別PCへhttp://で接続する場合だけ、通信リスクを理解した上でtrueにします。
+    allow_insecure_http: false
 
   lmstudio:
     # LM StudioのOpenAI互換API。標準ポートは1234です。
@@ -35,12 +43,16 @@ llm:
     # LM Studio側で認証を有効にした場合はAPI Tokenを指定します。
     # 認証なしの場合は、この初期値のままで利用できます。
     api_key: lm-studio
+    # 別PCへhttp://で接続する場合だけ、通信リスクを理解した上でtrueにします。
+    allow_insecure_http: false
 
   anthropic:
     # providerをanthropicにする場合に設定します。
     # 空欄の場合は環境変数 ANTHROPIC_API_KEY を使用します。
     api_key: ""
     base_url: https://api.anthropic.com
+    # 公式以外の互換APIへキーを送る場合だけtrueにします。
+    allow_custom_base_url: false
 
   gemini:
     # 空欄の場合は環境変数 GEMINI_API_KEY または GOOGLE_API_KEY を使用します。
@@ -51,5 +63,7 @@ llm:
     # Responses APIでテキスト出力に対応するモデルIDをllm.modelへ指定します。
     api_key: ""
     base_url: https://api.openai.com/v1
+    # 公式以外の互換APIへキーを送る場合だけtrueにします。
+    allow_custom_base_url: false
     # 一部の推論モデルはtemperatureを受け付けないため、初期値では送信しません。
     use_temperature: false
